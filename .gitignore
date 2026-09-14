@@ -1,0 +1,81 @@
+# ==========================================
+# PRIVATE DATA & TAKEOUT EXCLUSIONS (CRITICAL)
+# ==========================================
+# Google Takeout data folders
+Google transactions/
+Group expenses/
+Money sends and requests/
+My_Activity/
+Rewards earned/
+
+# Raw Takeout Data & Export Files
+*.html
+*.csv
+*.tsv
+*.json
+*.xlsx
+*.ods
+
+# Ignore specific dataset filenames if any exist
+My_Activity.html
+google_pay_activity.csv
+
+# ==========================================
+# PYTHON & ENVIRONMENT EXCLUSIONS
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ==========================================
+# IDE & EDITOR EXCLUSIONS
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# ==========================================
+# OPERATING SYSTEM EXCLUSIONS
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==========================================
+# LOGS & TEMPORARY FILES
+# ==========================================
+*.log
+scratch/
