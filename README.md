@@ -4,7 +4,7 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.25%2B-FF4B4B.svg)](https://streamlit.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An interactive, locally-hosted **Google Pay Analytics Dashboard** and HTML-to-CSV parser. Analyze your personal spending patterns, transaction histories, rewards, and payment statistics from your official **Google Takeout** export without compromising your data privacy.
+An interactive, locally-hosted **Google Pay Analytics Dashboard** and HTML-to-CSV parser. Analyze your personal spending patterns, transaction histories, rewards, group bill splits, and payment statistics from your official **Google Takeout** export without compromising your data privacy.
 
 > [!IMPORTANT]
 > **Data Privacy & Security First**: This repository contains **NO private personal data**. All scripts process your Google Takeout data strictly on your local machine. No financial information or transaction records are ever sent to external servers or stored in this repository.
@@ -13,15 +13,13 @@ An interactive, locally-hosted **Google Pay Analytics Dashboard** and HTML-to-CS
 
 ## 📸 Dashboard Preview
 
-*(Replace the placeholder images below with screenshots of your dashboard in the `assets/` directory)*
-
-| **Overview & KPI Metrics** | **Monthly Spending Trends** |
+| **Dashboard Overview & Executive KPIs** | **Spending Analytics & YoY Trends** |
 | :---: | :---: |
-| ![Dashboard Overview](assets/dashboard_overview.png) | ![Spending Analytics](assets/spending_analytics.png) |
+| ![Dashboard Overview](assets/Dashboard_overview.png) | ![Spending Analytics](assets/spending_analytics.png) |
 
-| **Category Breakdown** | **Recipient & Transaction Insights** |
-| :---: | :---: |
-| ![Category Breakdown](assets/category_breakdown.png) | ![Transaction Insights](assets/transaction_insights.png) |
+| **Transaction Insights & Merchant Intelligence** |
+| :---: |
+| ![Transaction Insights](assets/transaction_insights.png) |
 
 ---
 
@@ -32,11 +30,14 @@ An interactive, locally-hosted **Google Pay Analytics Dashboard** and HTML-to-CS
   - Extracts Transaction IDs, Statuses (Completed, Pending, Failed), Amounts, Currencies, Recipients/Merchants, Payment Methods, and Timestamps into clean, structured CSV format.
 
 - 📊 **Interactive Streamlit Dashboard (`app.py`)**:
-  - **KPI Scorecards**: Instant summaries of Total Spending, Transaction Counts, Success Rates, and Average Transaction Values.
-  - **Time Series & Trend Analysis**: Monthly and weekly expenditure breakdowns using interactive Plotly charts.
-  - **Merchant & Recipient Insights**: Analyze top vendors, frequent recipients, and peer-to-peer transfers.
-  - **Status Filtering**: Filter by successful, failed, or pending payments to audit failed transactions easily.
-  - **Date & Category Filters**: Dynamic date range selector and search capability.
+  - **Executive Summary & Scorecards**: Instant summaries of Total Outflow `((Paid + Sent) - Received)`, Gross Paid, Direct Sent, Total Received, and Transaction Counts.
+  - **Year-on-Year (YoY) & Monthly Trends**: Detailed YoY and Month-on-Month (MoM) growth metrics, monthly spend trajectories, and calendar month seasonality analysis.
+  - **Merchant & Payee Intelligence**: Top merchants by spend and transaction frequency, plus single-merchant deep dives.
+  - **Rewards & Cashback Analytics**: Tracks cashback earned and scratch card vouchers/coupons.
+  - **Group Expenses & Bill Splits**: Detailed analysis of shared trip expenses and individual settlement status.
+  - **Google Play & Subscriptions**: Track digital purchases and app subscriptions.
+  - **Outflow Formula Control**: Option to strictly exclude Pending and Failed transactions from Outflow totals.
+  - **Date & Category Filters**: Dynamic Year(s), Month(s), Action Type, and Status selectors.
 
 ---
 
@@ -44,12 +45,11 @@ An interactive, locally-hosted **Google Pay Analytics Dashboard** and HTML-to-CS
 
 ```text
 Google-Pay-Takeout-Analytics/
-├── assets/                       # Place screenshots of your dashboard here
-│   ├── dashboard_overview.png
+├── assets/                       # Dashboard screenshots
+│   ├── Dashboard_overview.png
 │   ├── spending_analytics.png
-│   ├── category_breakdown.png
 │   └── transaction_insights.png
-├── app.py                        # Streamlit dashboard application
+├── app.py                        # Multi-source Streamlit dashboard application
 ├── convert_activity_to_csv.py    # Takeout HTML activity to structured CSV converter
 ├── requirements.txt              # Python dependency file
 ├── .gitignore                    # Prevents private Google Takeout data from being committed
@@ -63,7 +63,7 @@ Google-Pay-Takeout-Analytics/
 To prevent personal financial data from being pushed to GitHub, a pre-configured `.gitignore` file is included in this repository. It automatically blocks:
 - `My_Activity.html` and any `*.html` files
 - `*.csv`, `*.json`, and `*.xlsx` files
-- Google Takeout extracted data directories (`Google transactions/`, `My_Activity/`, etc.)
+- Google Takeout extracted data directories (`Google transactions/`, `Group expenses/`, `My_Activity/`, `Rewards earned/`)
 - Python cache files and virtual environments (`venv/`)
 
 ---
@@ -83,62 +83,24 @@ cd Google-Pay-Takeout-Analytics
 
 ### 3. Install Dependencies
 
-It is recommended to use a virtual environment:
-
 ```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate on Linux/macOS:
-source venv/bin/activate
-
-# Activate on Windows:
-# venv\Scripts\activate
-
-# Install required packages
 pip install -r requirements.txt
 ```
 
----
-
-## 📥 How to Export Your Google Pay Data
-
-1. Visit [Google Takeout](https://takeout.google.com/).
-2. Click **Deselect all** and scroll down to select **Google Pay**.
-3. Choose `.zip` format and request the export.
-4. Download and extract the zip archive once ready.
-5. Locate your `My_Activity.html` file (usually inside `Takeout/Google Pay/My_Activity/`).
-
----
-
-## 🛠️ Usage Instructions
-
-### Step 1: Convert HTML Activity to CSV (Optional)
-
-If your Takeout export is in HTML format, run the conversion script to parse your data into a structured CSV file:
+### 4. Convert Activity HTML to CSV
 
 ```bash
-python convert_activity_to_csv.py
+python3 convert_activity_to_csv.py "My_Activity/My_Activity.html" "My_Activity/My_Activity.csv"
 ```
 
-### Step 2: Run the Streamlit Dashboard
-
-Launch the interactive dashboard in your browser:
+### 5. Launch Dashboard
 
 ```bash
 streamlit run app.py
 ```
 
-Once launched, open your web browser at `http://localhost:8501`.
-
----
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome! Feel free to check out the issues page if you want to contribute.
-
 ---
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -146,6 +146,7 @@ def load_activity_data(filepath_or_buffer):
     df['Year'] = df['Parsed_Timestamp'].dt.year
     df['Month'] = df['Parsed_Timestamp'].dt.month
     df['Month_Name'] = df['Parsed_Timestamp'].dt.strftime('%b')
+    df['Month_Full_Name'] = df['Parsed_Timestamp'].dt.strftime('%B')
     df['Year_Month'] = df['Parsed_Timestamp'].dt.to_period('M').astype(str)
     df['Day_of_Week'] = df['Parsed_Timestamp'].dt.day_name()
     df['Hour'] = df['Parsed_Timestamp'].dt.hour
@@ -285,10 +286,10 @@ def get_default_csv():
 st.markdown("""
 <div class="main-header">
     <div class="main-title">
-        <span>🌐 Google Pay Full Takeout Intelligence & YoY Dashboard</span>
+        <span>🌐 Google Pay Activity Intelligence & YoY Dashboard</span>
     </div>
     <div class="main-subtitle">
-        Multi-Source Analytics: Activity Transactions, Group Bill Splits, Cashback Rewards, Vouchers, and Play Store Subscriptions.
+        Deep-dive financial analytics: Total Outflow calculated as (Paid + Sent - Received), excluding Pending & Failed transactions.
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -336,12 +337,19 @@ st.sidebar.subheader("⚙️ Outflow Settings")
 exclude_non_completed = st.sidebar.checkbox(
     "Remove Pending & Failed from Outflow",
     value=True,
-    help="When enabled, Pending and Failed transactions are strictly excluded from Total Outflow, Received, and Net Cashflow calculation."
+    help="When enabled, Pending and Failed transactions are strictly excluded from Total Outflow calculation."
 )
 
 # Available Filters
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔍 Date & Category Filters")
+
 all_years = sorted([int(y) for y in df_valid['Year'].dropna().unique()], reverse=True)
 selected_years = st.sidebar.multiselect("Filter by Year(s)", options=all_years, default=all_years)
+
+month_order = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+available_months = [m for m in month_order if m in df_valid['Month_Full_Name'].dropna().unique()]
+selected_months = st.sidebar.multiselect("Filter by Month(s)", options=month_order, default=available_months)
 
 all_actions = sorted(df_valid['Action'].dropna().unique())
 selected_actions = st.sidebar.multiselect("Filter by Action Type", options=all_actions, default=all_actions)
@@ -352,6 +360,7 @@ selected_statuses = st.sidebar.multiselect("Filter by Status", options=all_statu
 # Filter Dataset based on sidebar selections
 df_filtered = df_valid[
     (df_valid['Year'].isin(selected_years)) &
+    (df_valid['Month_Full_Name'].isin(selected_months)) &
     (df_valid['Action'].isin(selected_actions)) &
     (df_valid['Status'].isin(selected_statuses))
 ].copy()
@@ -370,9 +379,10 @@ else:
 
 
 # Main Dashboard Tabs
-tab_overview, tab_yoy, tab_merchants, tab_rewards, tab_groups, tab_play, tab_banks, tab_temporal, tab_raw = st.tabs([
+tab_overview, tab_yoy, tab_monthly, tab_merchants, tab_rewards, tab_groups, tab_play, tab_banks, tab_temporal, tab_raw = st.tabs([
     "📊 Executive Summary",
     "📈 YoY Insights",
+    "📅 Monthly Trends",
     "🏪 Merchants",
     "🎁 Rewards & Cashbacks",
     "👥 Group Expenses",
@@ -388,8 +398,7 @@ tab_overview, tab_yoy, tab_merchants, tab_rewards, tab_groups, tab_play, tab_ban
 # ==========================================
 with tab_overview:
     st.subheader("📌 Overall Financial Snapshot")
-    if exclude_non_completed:
-        st.info("ℹ️ **Outflow & Financial Totals exclude Pending and Failed transactions** to reflect actual settled funds.")
+    st.info("ℹ️ **Formula:** `Total Outflow = (Paid + Sent) - Received` (Excludes Pending & Failed transactions).")
 
     # Compute Metrics on Financial Dataset
     paid_df = df_fin[df_fin['Action'] == 'Paid']
@@ -398,11 +407,12 @@ with tab_overview:
     
     total_spent = paid_df['Amount'].sum()
     total_sent = sent_df['Amount'].sum()
-    total_outflow = total_spent + total_sent
     total_received = received_df['Amount'].sum()
-    net_flow = total_received - total_outflow
+    
+    # User's Requested Formula: Total Outflow = Paid + Sent - Received
+    total_outflow = (total_spent + total_sent) - total_received
+    
     total_txns = len(df_filtered)
-
     total_cashback = df_cashback['Reward Amount'].sum() if not df_cashback.empty else 0.0
     
     completed_txns = len(df_filtered[df_filtered['Status'] == 'Completed'])
@@ -416,48 +426,48 @@ with tab_overview:
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
+        outflow_color = "#34A853" if total_outflow <= 0 else "#F8FAFC"
         st.markdown(f"""
         <div class="kpi-card">
-            <div class="kpi-label">Settled Outflow</div>
-            <div class="kpi-value">₹{total_outflow:,.2f}</div>
-            <div class="kpi-subtext">Paid: ₹{total_spent:,.0f} | Sent: ₹{total_sent:,.0f}</div>
+            <div class="kpi-label">Total Outflow</div>
+            <div class="kpi-value" style="color:{outflow_color};">₹{total_outflow:,.2f}</div>
+            <div class="kpi-subtext">(Paid + Sent) − Received</div>
         </div>
         """, unsafe_allow_html=True)
         
     with col2:
         st.markdown(f"""
         <div class="kpi-card">
-            <div class="kpi-label">Total Received</div>
-            <div class="kpi-value" style="color:#34A853;">₹{total_received:,.2f}</div>
-            <div class="kpi-subtext">{len(received_df):,} Settled Credits</div>
+            <div class="kpi-label">Gross Paid</div>
+            <div class="kpi-value" style="color:#EA4335;">₹{total_spent:,.2f}</div>
+            <div class="kpi-subtext">{len(paid_df):,} Merchant Payments</div>
         </div>
         """, unsafe_allow_html=True)
         
     with col3:
-        net_color = "#34A853" if net_flow >= 0 else "#EA4335"
         st.markdown(f"""
         <div class="kpi-card">
-            <div class="kpi-label">Net Cashflow</div>
-            <div class="kpi-value" style="color:{net_color};">₹{net_flow:,.2f}</div>
-            <div class="kpi-subtext">Received minus Outflow</div>
+            <div class="kpi-label">Direct Money Sent</div>
+            <div class="kpi-value" style="color:#FBBC05;">₹{total_sent:,.2f}</div>
+            <div class="kpi-subtext">{len(sent_df):,} Peer Transfers</div>
         </div>
         """, unsafe_allow_html=True)
 
     with col4:
         st.markdown(f"""
         <div class="kpi-card">
-            <div class="kpi-label">Total Transactions</div>
-            <div class="kpi-value">{total_txns:,}</div>
-            <div class="kpi-subtext">Failed: {failed_txns} | Pending: {pending_txns}</div>
+            <div class="kpi-label">Total Received</div>
+            <div class="kpi-value" style="color:#34A853;">₹{total_received:,.2f}</div>
+            <div class="kpi-subtext">{len(received_df):,} Credits Received</div>
         </div>
         """, unsafe_allow_html=True)
 
     with col5:
         st.markdown(f"""
         <div class="kpi-card">
-            <div class="kpi-label">Cashback Rewards Earned</div>
-            <div class="kpi-value" style="color:#FBBC05;">₹{total_cashback:,.2f}</div>
-            <div class="kpi-subtext">{len(df_vouchers)} Vouchers Earned</div>
+            <div class="kpi-label">Total Transactions</div>
+            <div class="kpi-value">{total_txns:,}</div>
+            <div class="kpi-subtext">Failed: {failed_txns} | Pending: {pending_txns}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -467,15 +477,26 @@ with tab_overview:
     chart_col1, chart_col2 = st.columns([2, 1])
 
     with chart_col1:
-        st.markdown("#### 📉 Cumulative & Monthly Outflow Trend (Settled Transactions)")
-        df_monthly = df_fin[df_fin['Action'].isin(['Paid', 'Sent'])].groupby('Year_Month')['Amount'].sum().reset_index()
-        df_monthly['Cumulative'] = df_monthly['Amount'].cumsum()
+        st.markdown("#### 📉 Cumulative & Monthly Outflow Trend (Paid + Sent - Received)")
+        
+        df_m_paid = df_fin[df_fin['Action'] == 'Paid'].groupby('Year_Month')['Amount'].sum()
+        df_m_sent = df_fin[df_fin['Action'] == 'Sent'].groupby('Year_Month')['Amount'].sum()
+        df_m_recv = df_fin[df_fin['Action'] == 'Received'].groupby('Year_Month')['Amount'].sum()
+
+        df_monthly = pd.DataFrame({
+            'Paid': df_m_paid,
+            'Sent': df_m_sent,
+            'Received': df_m_recv
+        }).fillna(0.0).reset_index()
+
+        df_monthly['Outflow'] = (df_monthly['Paid'] + df_monthly['Sent']) - df_monthly['Received']
+        df_monthly['Cumulative'] = df_monthly['Outflow'].cumsum()
 
         fig_trend = go.Figure()
         fig_trend.add_trace(go.Bar(
             x=df_monthly['Year_Month'],
-            y=df_monthly['Amount'],
-            name="Monthly Outflow",
+            y=df_monthly['Outflow'],
+            name="Net Monthly Outflow",
             marker_color="#4285F4",
             opacity=0.75
         ))
@@ -531,8 +552,8 @@ with tab_yoy:
     yoy_summary = yoy_summary.merge(df_yoy_sent, on='Year', how='left')
     yoy_summary = yoy_summary.merge(df_yoy_received, on='Year', how='left').fillna(0)
 
-    yoy_summary['Total_Outflow'] = yoy_summary['Total_Paid'] + yoy_summary['Total_Sent']
-    yoy_summary['Net_Flow'] = yoy_summary['Total_Received'] - yoy_summary['Total_Outflow']
+    # Formula: Total Outflow = Paid + Sent - Received
+    yoy_summary['Total_Outflow'] = (yoy_summary['Total_Paid'] + yoy_summary['Total_Sent']) - yoy_summary['Total_Received']
     
     yoy_summary['YoY_Outflow_Growth_%'] = yoy_summary['Total_Outflow'].pct_change() * 100
     yoy_summary['YoY_Txn_Growth_%'] = yoy_summary['Total_Txns'].pct_change() * 100
@@ -543,24 +564,25 @@ with tab_yoy:
 
         st.markdown(f"""
         <div class="insight-card">
-            💡 <b>Peak Spending Year:</b> <b>{int(max_spend_row['Year'])}</b> reached the highest overall outflow of <b>₹{max_spend_row['Total_Outflow']:,.2f}</b> across {int(max_spend_row['Total_Txns']):,} settled transactions.
+            💡 <b>Peak Net Outflow Year:</b> <b>{int(max_spend_row['Year'])}</b> reached the highest overall outflow of <b>₹{max_spend_row['Total_Outflow']:,.2f}</b> (Paid + Sent - Received) across {int(max_spend_row['Total_Txns']):,} settled transactions.
         </div>
         """, unsafe_allow_html=True)
 
         if max_growth_row is not None and not np.isnan(max_growth_row['YoY_Outflow_Growth_%']):
             st.markdown(f"""
             <div class="insight-card">
-                🚀 <b>Highest YoY Expansion:</b> Year <b>{int(max_growth_row['Year'])}</b> saw a <b>+{max_growth_row['YoY_Outflow_Growth_%']:.1f}% YoY growth</b> in annual Google Pay spending.
+                🚀 <b>Highest YoY Expansion:</b> Year <b>{int(max_growth_row['Year'])}</b> saw a <b>+{max_growth_row['YoY_Outflow_Growth_%']:.1f}% YoY growth</b> in net outflow.
             </div>
             """, unsafe_allow_html=True)
 
-    st.markdown("#### 📋 Annual YoY Metrics Summary Table (Settled Funds)")
+    st.markdown("#### 📋 Annual YoY Metrics Summary Table (Total Outflow = Paid + Sent - Received)")
     
-    yoy_display = yoy_summary[['Year', 'Total_Outflow', 'YoY_Outflow_Growth_%', 'Total_Received', 'Net_Flow', 'Total_Txns', 'YoY_Txn_Growth_%']].copy()
+    yoy_display = yoy_summary[['Year', 'Total_Paid', 'Total_Sent', 'Total_Received', 'Total_Outflow', 'YoY_Outflow_Growth_%', 'Total_Txns', 'YoY_Txn_Growth_%']].copy()
     yoy_display['Year'] = yoy_display['Year'].astype(str)
-    yoy_display['Total_Outflow'] = yoy_display['Total_Outflow'].map('₹{:,.2f}'.format)
+    yoy_display['Total_Paid'] = yoy_display['Total_Paid'].map('₹{:,.2f}'.format)
+    yoy_display['Total_Sent'] = yoy_display['Total_Sent'].map('₹{:,.2f}'.format)
     yoy_display['Total_Received'] = yoy_display['Total_Received'].map('₹{:,.2f}'.format)
-    yoy_display['Net_Flow'] = yoy_display['Net_Flow'].map('₹{:,.2f}'.format)
+    yoy_display['Total_Outflow'] = yoy_display['Total_Outflow'].map('₹{:,.2f}'.format)
     yoy_display['YoY_Outflow_Growth_%'] = yoy_display['YoY_Outflow_Growth_%'].map('{:+.1f}%'.format).replace('+nan%', '-')
     yoy_display['YoY_Txn_Growth_%'] = yoy_display['YoY_Txn_Growth_%'].map('{:+.1f}%'.format).replace('+nan%', '-')
     
@@ -571,12 +593,12 @@ with tab_yoy:
     col_y1, col_y2 = st.columns(2)
 
     with col_y1:
-        st.markdown("#### 📊 Annual Spending vs Receiving Volume")
+        st.markdown("#### 📊 Annual Outflow vs Received Volume")
         fig_yoy_bar = go.Figure()
         fig_yoy_bar.add_trace(go.Bar(
             x=yoy_summary['Year'].astype(str),
             y=yoy_summary['Total_Outflow'],
-            name="Total Outflow (Paid + Sent)",
+            name="Net Outflow ((Paid+Sent)-Received)",
             marker_color="#EA4335"
         ))
         fig_yoy_bar.add_trace(go.Bar(
@@ -595,8 +617,14 @@ with tab_yoy:
         st.plotly_chart(fig_yoy_bar, use_container_width=True)
 
     with col_y2:
-        st.markdown("#### 📆 Monthly Spend Trajectory across Years")
-        df_month_yoy = df_yoy_base[df_yoy_base['Action'].isin(['Paid', 'Sent'])].groupby(['Year', 'Month', 'Month_Name'])['Amount'].sum().reset_index()
+        st.markdown("#### 📆 Monthly Outflow Trajectory across Years")
+        
+        df_m_p = df_yoy_base[df_yoy_base['Action'] == 'Paid'].groupby(['Year', 'Month', 'Month_Name'])['Amount'].sum()
+        df_m_s = df_yoy_base[df_yoy_base['Action'] == 'Sent'].groupby(['Year', 'Month', 'Month_Name'])['Amount'].sum()
+        df_m_r = df_yoy_base[df_yoy_base['Action'] == 'Received'].groupby(['Year', 'Month', 'Month_Name'])['Amount'].sum()
+
+        df_month_yoy = pd.DataFrame({'Paid': df_m_p, 'Sent': df_m_s, 'Received': df_m_r}).fillna(0.0).reset_index()
+        df_month_yoy['Amount'] = (df_month_yoy['Paid'] + df_month_yoy['Sent']) - df_month_yoy['Received']
         df_month_yoy['Month_Name'] = pd.to_datetime(df_month_yoy['Month'], format='%m').dt.strftime('%b')
         df_month_yoy = df_month_yoy.sort_values('Month')
 
@@ -606,7 +634,7 @@ with tab_yoy:
             y='Amount',
             color=df_month_yoy['Year'].astype(str),
             markers=True,
-            labels={'Month_Name': 'Month', 'Amount': 'Total Outflow (₹)', 'color': 'Year'}
+            labels={'Month_Name': 'Month', 'Amount': 'Net Outflow (₹)', 'color': 'Year'}
         )
         fig_month_line.update_layout(
             template="plotly_dark",
@@ -616,9 +644,136 @@ with tab_yoy:
         )
         st.plotly_chart(fig_month_line, use_container_width=True)
 
+    # YoY Top Merchant Shift
+    st.markdown("#### 🏷️ Top 3 Merchants per Year")
+    yoy_merchants = df_yoy_base[df_yoy_base['Action'] == 'Paid'].groupby(['Year', 'Recipient_or_Sender'])['Amount'].sum().reset_index()
+    top_per_year = yoy_merchants.sort_values(['Year', 'Amount'], ascending=[True, False]).groupby('Year').head(3)
+
+    fig_top_year = px.bar(
+        top_per_year,
+        x='Year',
+        y='Amount',
+        color='Recipient_or_Sender',
+        title="Top Merchants / Payees by Year",
+        barmode='stack',
+        text_auto='.2s'
+    )
+    fig_top_year.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+    st.plotly_chart(fig_top_year, use_container_width=True)
+
 
 # ==========================================
-# TAB 3: MERCHANT INTELLIGENCE
+# TAB 3: MONTHLY TRENDS & MOM ANALYTICS (NEW)
+# ==========================================
+with tab_monthly:
+    st.subheader("📅 Monthly Trends & Month-on-Month (MoM) Financial Trajectory")
+
+    df_m_base = df_valid[~df_valid['Status'].isin(NON_FINANCIAL_STATUSES)] if exclude_non_completed else df_valid
+    
+    df_m_filtered = df_m_base[
+        (df_m_base['Year'].isin(selected_years)) &
+        (df_m_base['Month_Full_Name'].isin(selected_months)) &
+        (df_m_base['Action'].isin(selected_actions))
+    ].copy()
+
+    m_paid = df_m_filtered[df_m_filtered['Action'] == 'Paid'].groupby('Year_Month')['Amount'].sum()
+    m_sent = df_m_filtered[df_m_filtered['Action'] == 'Sent'].groupby('Year_Month')['Amount'].sum()
+    m_recv = df_m_filtered[df_m_filtered['Action'] == 'Received'].groupby('Year_Month')['Amount'].sum()
+    m_txns = df_m_filtered.groupby('Year_Month')['ID'].count()
+
+    df_mom = pd.DataFrame({
+        'Paid': m_paid,
+        'Sent': m_sent,
+        'Received': m_recv,
+        'Txn_Count': m_txns
+    }).fillna(0.0).reset_index()
+
+    df_mom['Outflow'] = (df_mom['Paid'] + df_mom['Sent']) - df_mom['Received']
+    df_mom['MoM_Outflow_Growth_%'] = df_mom['Outflow'].pct_change() * 100
+    df_mom['MoM_Txn_Growth_%'] = df_mom['Txn_Count'].pct_change() * 100
+
+    st.markdown("#### 📊 Month-on-Month (MoM) Outflow & Cashflow Breakdown")
+
+    fig_mom = go.Figure()
+    fig_mom.add_trace(go.Bar(
+        x=df_mom['Year_Month'],
+        y=df_mom['Paid'],
+        name="Paid to Merchants",
+        marker_color="#EA4335"
+    ))
+    fig_mom.add_trace(go.Bar(
+        x=df_mom['Year_Month'],
+        y=df_mom['Sent'],
+        name="Direct Money Sent",
+        marker_color="#FBBC05"
+    ))
+    fig_mom.add_trace(go.Bar(
+        x=df_mom['Year_Month'],
+        y=-df_mom['Received'],
+        name="Credits Received (Subtracted)",
+        marker_color="#34A853"
+    ))
+    fig_mom.add_trace(go.Scatter(
+        x=df_mom['Year_Month'],
+        y=df_mom['Outflow'],
+        name="Net Outflow ((Paid+Sent)-Received)",
+        line=dict(color="#38BDF8", width=3)
+    ))
+
+    fig_mom.update_layout(
+        barmode='relative',
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=20, r=20, t=30, b=20),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    st.plotly_chart(fig_mom, use_container_width=True)
+
+    col_m1, col_m2 = st.columns(2)
+
+    with col_m1:
+        st.markdown("#### 📆 Seasonality: Average Outflow by Calendar Month")
+        df_season = df_mom.copy()
+        df_season['Month_Num'] = pd.to_datetime(df_season['Year_Month'], format='%Y-%m').dt.month
+        df_season['Month_Name'] = pd.to_datetime(df_season['Year_Month'], format='%Y-%m').dt.strftime('%b')
+
+        avg_season = df_season.groupby(['Month_Num', 'Month_Name'])['Outflow'].mean().reset_index().sort_values('Month_Num')
+
+        fig_season = px.bar(
+            avg_season,
+            x='Month_Name',
+            y='Outflow',
+            title="Average Outflow per Calendar Month (₹)",
+            color_discrete_sequence=['#4285F4'],
+            text_auto='.2s'
+        )
+        fig_season.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
+        st.plotly_chart(fig_season, use_container_width=True)
+
+    with col_m2:
+        st.markdown("#### 📋 Month-on-Month (MoM) Financial Metrics Table")
+        df_mom_display = df_mom.copy()
+        df_mom_display['Paid'] = df_mom_display['Paid'].map('₹{:,.2f}'.format)
+        df_mom_display['Sent'] = df_mom_display['Sent'].map('₹{:,.2f}'.format)
+        df_mom_display['Received'] = df_mom_display['Received'].map('₹{:,.2f}'.format)
+        df_mom_display['Outflow'] = df_mom_display['Outflow'].map('₹{:,.2f}'.format)
+        df_mom_display['MoM_Outflow_Growth_%'] = df_mom_display['MoM_Outflow_Growth_%'].map('{:+.1f}%'.format).replace('+nan%', '-')
+
+        st.dataframe(df_mom_display[['Year_Month', 'Paid', 'Sent', 'Received', 'Outflow', 'MoM_Outflow_Growth_%', 'Txn_Count']], use_container_width=True, height=350, hide_index=True)
+
+
+# ==========================================
+# TAB 4: MERCHANT INTELLIGENCE
 # ==========================================
 with tab_merchants:
     st.subheader("🏪 Merchant & Recipient Spending Intelligence")
@@ -702,7 +857,7 @@ with tab_merchants:
 
 
 # ==========================================
-# TAB 4: REWARDS & CASHBACKS (NEW)
+# TAB 5: REWARDS & CASHBACKS
 # ==========================================
 with tab_rewards:
     st.subheader("🎁 Google Pay Rewards & Cashback Analytics")
@@ -713,7 +868,6 @@ with tab_rewards:
         st.markdown("#### 💰 Cashback Rewards History")
         if not df_cashback.empty:
             total_cashback_amt = df_cashback['Reward Amount'].sum()
-            avg_reward = df_cashback['Reward Amount'].mean()
             st.metric("Total Cashback Won", f"₹{total_cashback_amt:,.2f}", delta=f"{len(df_cashback)} Rewards Won")
             
             df_cb_monthly = df_cashback.groupby('Year_Month')['Reward Amount'].sum().reset_index()
@@ -743,7 +897,7 @@ with tab_rewards:
 
 
 # ==========================================
-# TAB 5: GROUP EXPENSES & BILL SPLITS (NEW)
+# TAB 6: GROUP EXPENSES & BILL SPLITS
 # ==========================================
 with tab_groups:
     st.subheader("👥 Group Expenses & Shared Trip Splits")
@@ -786,7 +940,7 @@ with tab_groups:
 
 
 # ==========================================
-# TAB 6: GOOGLE PLAY & SUBSCRIPTIONS (NEW)
+# TAB 7: GOOGLE PLAY & SUBSCRIPTIONS
 # ==========================================
 with tab_play:
     st.subheader("🛍️ Google Play Store Purchases & Digital Subscriptions")
@@ -825,7 +979,7 @@ with tab_play:
 
 
 # ==========================================
-# TAB 7: BANK & PAYMENT METHODS
+# TAB 8: BANK & PAYMENT METHODS
 # ==========================================
 with tab_banks:
     st.subheader("💳 Bank Accounts & Transaction Status Analysis")
@@ -872,7 +1026,7 @@ with tab_banks:
 
 
 # ==========================================
-# TAB 8: TEMPORAL & BEHAVIORAL TRENDS
+# TAB 9: TEMPORAL & BEHAVIORAL TRENDS
 # ==========================================
 with tab_temporal:
     st.subheader("⏰ Spending Timing & Behavioral Heatmaps")
@@ -937,7 +1091,7 @@ with tab_temporal:
 
 
 # ==========================================
-# TAB 9: RAW DATA & EXPORT
+# TAB 10: RAW DATA & EXPORT
 # ==========================================
 with tab_raw:
     st.subheader("🔍 Explore & Download Extracted Transactions")
